@@ -18,13 +18,13 @@ int main(int argc, char* argv[])
     int pid = fork();
 
     if (pid > 0) { // Tiến trình cha
+        close(p1[0]); // Đóng đầu đọc của p1 (cha không cần đọc từ p1)
+        close(p2[1]); // Đóng đầu ghi của p2 (cha không ghi vào p2)
         // Ghi byte "ping" vào pipe p1[1]
         if (write(p1[1], &byte, 1) < 0) {
             fprintf(2, "Error: Parent cannot write to pipe\n");
-            close(p1[0]);
             close(p1[1]);
             close(p2[0]);
-            close(p2[1]);
             exit(1);
         }
         close(p1[1]); // Đóng p1[1] sau khi ghi xong
@@ -35,7 +35,6 @@ int main(int argc, char* argv[])
         // Đọc byte từ pipe p2[0] (từ con gửi về)
         if (read(p2[0], &bytefer, 1) < 0) {
             fprintf(2, "Error: Parent cannot read from pipe\n");
-            close(p1[0]);
             close(p2[0]);
             exit(1);
         }
@@ -43,6 +42,8 @@ int main(int argc, char* argv[])
         close(p2[0]); // Đóng p2[0] sau khi đọc xong
 
     } else if (pid == 0) { // Tiến trình con
+        close(p1[1]); // Đóng đầu ghi của p1 (con không cần ghi vào p1)
+        close(p2[0]); // Đóng đầu đọc của p2 (con không cần đọc từ p2)
         // Đọc byte từ pipe p1[0] (từ cha gửi xuống)
         if (read(p1[0], &bytefer, 1) < 0) {
             fprintf(2, "Error: Child cannot read from pipe\n");

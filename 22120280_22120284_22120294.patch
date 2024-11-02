@@ -1,0 +1,329 @@
+diff --git a/.gitignore b/.gitignore
+index 11d0677..48719c9 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -25,3 +25,5 @@ barrier
+ .DS_Store
+ *.dSYM
+ *.pcap
++
++*.txt
+diff --git a/Makefile b/Makefile
+index 74e454f..2941e5a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -194,6 +194,10 @@ UPROGS=\
+ 	$U/_grind\
+ 	$U/_wc\
+ 	$U/_zombie\
++	$U/_pingpong\
++	$U/_primes\
++	$U/_xargs\
++	$U/_find\
+ 
+ 
+ 
+diff --git a/user/find.c b/user/find.c
+new file mode 100644
+index 0000000..9333eac
+--- /dev/null
++++ b/user/find.c
+@@ -0,0 +1,82 @@
++#include "kernel/types.h"
++#include "kernel/stat.h"
++#include "user/user.h"
++#include "kernel/fs.h"
++
++void find(char *path, char *filename);
++
++int main(int argc, char *argv[]) {
++    if (argc != 3) {
++        printf(" [ERROR] => [Usage: find <path> <filename>]\n");
++        exit(1);
++    }
++
++    find(argv[1], argv[2]);
++
++    exit(0);
++}
++
++
++void find(char *path, char *filename) {
++    char buf[512]; // path thu muc
++    char *p;
++    int fd; // file descriptor để mở thư mục và đọc nội dung thư mục
++    struct dirent de; // 1 muc trong thu muc
++    struct stat st; // thong tin ve tep hoac thu muc
++
++    // Mở thư mục theo đường dẫn path ( 0 => readonly)
++    if ((fd = open(path, 0)) < 0) {
++        printf("find: cannot open %s\n", path);
++        return;
++    }
++
++    // Lấy thông tin của thư mục path lưu vào st
++    if (fstat(fd, &st) < 0) {
++        printf("find: cannot stat %s\n", path);
++        close(fd);
++        return;
++    }
++
++    // Kiểm tra nếu không phải là thư mục thì dừng
++    if (st.type != T_DIR) {
++        printf("find: %s is not a directory\n", path);
++        close(fd);
++        return;
++    }
++
++    // Sao chép đường dẫn hiện tại vào buf
++    strcpy(buf, path);
++    p = buf + strlen(buf);
++    // Them / vao cuoi
++    *p++ = '/';
++
++    // Duyệt qua từng mục trong thư mục
++    while (read(fd, &de, sizeof(de)) == sizeof(de)) {
++        // Bỏ qua các thư mục đặc biệt "." và ".."
++        if (de.inum == 0 || strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0)
++            continue;
++
++        // Sao chép tên mục vào buf để tạo đường dẫn đầy đủ
++        memmove(p, de.name, strlen(de.name));
++        p[strlen(de.name)] = '\0';
++
++        // Lấy thông tin của mục hiện tại
++        if (stat(buf, &st) < 0) {
++            printf("find: cannot stat %s\n", buf);
++            continue;
++        }
++
++        // Kiểm tra nếu tên mục trùng với filename thì in ra
++        if (strcmp(de.name, filename) == 0) {
++            printf("%s\n", buf);
++        }
++
++        // Nếu là thư mục, đệ quy gọi hàm find
++        if (st.type == T_DIR) {
++            find(buf, filename);
++        }
++    }
++
++    close(fd);
++}
++
+diff --git a/user/pingpong.c b/user/pingpong.c
+new file mode 100644
+index 0000000..d12122f
+--- /dev/null
++++ b/user/pingpong.c
+@@ -0,0 +1,77 @@
++#include "kernel/types.h"
++#include "user/user.h"
++#include "kernel/fcntl.h"
++
++int main(int argc, char* argv[])
++{
++    int p1[2]; // Pipe từ tiến trình cha đến tiến trình con
++    int p2[2]; // Pipe từ tiến trình con đến tiến trình cha
++    char byte = 'A'; // Byte để gửi
++    char bytefer;
++
++    // Tạo hai pipe và lưu các file descriptor vào p1 và p2
++    if (pipe(p1) < 0 || pipe(p2) < 0) {
++        fprintf(2, "Error: Cannot create pipes\n");
++        exit(1);
++    }
++
++    int pid = fork();
++
++    if (pid > 0) { // Tiến trình cha
++        // Ghi byte "ping" vào pipe p1[1]
++        if (write(p1[1], &byte, 1) < 0) {
++            fprintf(2, "Error: Parent cannot write to pipe\n");
++            close(p1[0]);
++            close(p1[1]);
++            close(p2[0]);
++            close(p2[1]);
++            exit(1);
++        }
++        close(p1[1]); // Đóng p1[1] sau khi ghi xong
++
++        // Chờ tiến trình con hoàn thành
++        wait((int *) 0);
++
++        // Đọc byte từ pipe p2[0] (từ con gửi về)
++        if (read(p2[0], &bytefer, 1) < 0) {
++            fprintf(2, "Error: Parent cannot read from pipe\n");
++            close(p1[0]);
++            close(p2[0]);
++            exit(1);
++        }
++        printf("%d: received pong\n", getpid());
++        close(p2[0]); // Đóng p2[0] sau khi đọc xong
++
++    } else if (pid == 0) { // Tiến trình con
++        // Đọc byte từ pipe p1[0] (từ cha gửi xuống)
++        if (read(p1[0], &bytefer, 1) < 0) {
++            fprintf(2, "Error: Child cannot read from pipe\n");
++            close(p1[0]);
++            close(p2[1]);
++            exit(1);
++        }
++        close(p1[0]); // Đóng p1[0] sau khi đọc xong
++        printf("%d: received ping\n", getpid());
++
++        // Ghi byte "pong" vào pipe p2[1]
++        bytefer = 'B';
++        if (write(p2[1], &bytefer, 1) < 0) {
++            fprintf(2, "Error: Child cannot write to pipe\n");
++            close(p2[1]);
++            exit(1);
++        }
++        close(p2[1]); // Đóng p2[1] sau khi ghi xong
++
++        exit(0);
++
++    } else { // fork() thất bại
++        fprintf(2, "Error: fork failed\n");
++        close(p1[0]);
++        close(p1[1]);
++        close(p2[0]);
++        close(p2[1]);
++        exit(1);
++    }
++
++    exit(0);
++}
+diff --git a/user/primes.c b/user/primes.c
+new file mode 100644
+index 0000000..f02e884
+--- /dev/null
++++ b/user/primes.c
+@@ -0,0 +1,60 @@
++#include "kernel/types.h"
++#include "user/user.h"
++
++void prime_sieve(int* fd) __attribute__((noreturn));
++
++void prime_sieve(int* fd)
++{
++    int prime;
++
++    if (read(fd[0], &prime, sizeof(int)) == 0) {
++        close(fd[0]); // Đóng pipe đọc
++        exit(0); // Không còn dữ liệu để xử lý
++    } else {
++        fprintf(2, "prime %d\n", prime); // In ra số nguyên tố tìm được
++        int p[2];
++        pipe(p); // Tạo pipe cho quá trình tiếp theo
++
++        if (fork() == 0) { // Tiến trình con
++            close(fd[0]); // Đóng pipe đọc từ tiến trình trước
++            close(p[1]); // Đóng đầu ghi của pipe mới
++            prime_sieve(p); // Đệ quy sang tiến trình tiếp theo
++            exit(0);
++        } else { // Tiến trình cha
++            close(p[0]); // Đóng đầu đọc của pipe mới
++            
++            int i;
++            while (read(fd[0], &i, sizeof(int)) > 0) {
++                if (i % prime != 0) { // Chỉ ghi số không chia hết cho prime
++                    write(p[1], &i, sizeof(int));
++                }
++            }
++            
++            close(p[1]); // Đóng đầu ghi khi hoàn thành
++            close(fd[0]); // Đóng đầu đọc hiện tại
++            wait(0); // Đợi tiến trình con hoàn thành
++            exit(0);
++        }
++    }
++}
++
++int main(int argc, char *argv[])
++{
++    int N = 280; // Giới hạn số nguyên tố cần tìm
++    int fd[2];
++
++    pipe(fd); // Tạo pipe đầu tiên
++
++    if (fork() == 0) { // Tiến trình con để xử lý các số nguyên tố
++        close(fd[1]); // Đóng đầu ghi vì tiến trình này chỉ đọc
++        prime_sieve(fd); // Gọi hàm xử lý
++    } else { // Tiến trình cha ghi số vào pipe
++        for (int i = 2; i <= N; i++) {
++            write(fd[1], &i, sizeof(int)); // Ghi các số 2 đến N vào pipe
++        }
++        close(fd[0]); // Đóng đầu đọc
++        close(fd[1]); // Đóng đầu ghi
++        wait(0); // Đợi tiến trình con hoàn thành
++    }
++    exit(0); // Kết thúc chương trình
++}
+diff --git a/user/xargs.c b/user/xargs.c
+new file mode 100644
+index 0000000..266304b
+--- /dev/null
++++ b/user/xargs.c
+@@ -0,0 +1,61 @@
++#include "kernel/types.h"
++#include "user/user.h"
++#include "kernel/param.h"
++
++#define BUF_SIZE 512
++
++// Hàm sao chép các đối số từ argv vào cmd, bỏ qua các tùy chọn '-n' và '1'
++int copy_arguments(char *argv[], char *cmd[], int argc) {
++    int n = 0;
++    for (int i = 1; i < argc; i++) {
++        if (strcmp(argv[i], "-n") != 0 && strcmp(argv[i], "1") != 0) {
++            cmd[n++] = argv[i];
++        }
++    }
++    cmd[n] = 0;  // Kết thúc chuỗi các đối số
++    return n;    // Trả về số đối số đã sao chép
++}
++
++// Hàm đọc một dòng từ stdin và lưu vào buf
++int read_line(char *buf, int size) {
++    char *p = buf;
++    memset(buf, 0, size);
++    while (read(0, p, 1) == 1 && *p != '\n') {
++        p++;
++    }
++    *p = 0; // Kết thúc chuỗi
++    return (p != buf); // Trả về 1 nếu có dữ liệu, 0 nếu không
++}
++
++// Hàm thực thi lệnh với các đối số trong cmd
++void execute_command(char *cmd[]) {
++    if (fork() == 0) {
++        exec(cmd[0], cmd);
++        fprintf(2, "exec %s failed\n", cmd[0]);
++        exit(1);
++    }
++    wait(0); // Chờ tiến trình con hoàn thành
++}
++
++int main(int argc, char *argv[]) {
++    char buf[BUF_SIZE];
++    char *cmd[MAXARG];
++
++    // Kiểm tra đối số đầu vào và sao chép các đối số vào cmd
++    if (argc < 2) {
++        fprintf(2, "Usage: xargs [options] [command [initial-arguments]]\n");
++        exit(1);
++    }
++
++    // Sao chép các đối số từ argv vào cmd
++    int n = copy_arguments(argv, cmd, argc);
++
++    // Vòng lặp đọc từng dòng từ stdin và thực thi lệnh
++    while (read_line(buf, BUF_SIZE)) {
++        cmd[n] = buf;
++        cmd[n + 1] = 0;
++        execute_command(cmd);  // Thực thi lệnh với đối số từ stdin
++    }
++
++    exit(0);
++}
