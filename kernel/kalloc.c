@@ -90,4 +90,15 @@ kalloc(void)
 #endif
   return (void*)r;
 }
+uint64 cal_freemem() {
+    struct run *r;
+    uint64 freemem = 0;
+
+    acquire(&kmem.lock);
+    for (r = kmem.freelist; r; r = r->next)
+        freemem += PGSIZE;
+    release(&kmem.lock);
+
+    return freemem;
+}
 
