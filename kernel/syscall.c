@@ -29,7 +29,9 @@ static char *syscall_names[] = {
     [SYS_link]    "link",
     [SYS_mkdir]   "mkdir",
     [SYS_close]   "close",
-    [SYS_trace]   "trace"
+    [SYS_trace]   "trace",
+    [SYS_sysinfo]   "sysinfo"
+
 };
 
 // Fetch the uint64 at addr from the current process.
@@ -157,23 +159,109 @@ static uint64 (*syscalls[])(void) = {
 [SYS_sysinfo] sys_sysinfo,
 };
 
-void
-syscall(void)
+void syscall(void)
 {
-  int num;
-  struct proc *p = myproc();
+    int num;
+    struct proc *p = myproc();
 
-  num = p->trapframe->a7;
-  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // Use num to lookup the system call function for num, call it,
-    // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
-    if (p->trace_mask & (1 << num)) {
-            printf("%d: syscall %s -> %ld\n", p->pid, syscall_names[num], (long)p->trapframe->a0);
+    num = p->trapframe->a7; // Lấy số hiệu system call từ thanh ghi a7
+
+    if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+        // Lưu tham số trước khi thực hiện syscall
+        uint64 args[6];
+        for (int i = 0; i < 6; i++) {
+            args[i] = argraw(i); // Lấy giá trị từ thanh ghi
+        }
+
+        // Thực hiện syscall
+        p->trapframe->a0 = syscalls[num]();
+
+        // Kiểm tra nếu tracing được bật cho syscall này
+        if (p->trace_mask & (1 << num)) {
+            printf("%d: syscall %s(", p->pid, syscall_names[num]);
+
+            // Xử lý tham số đặc biệt theo loại syscall
+            switch (num) {
+            case SYS_read:
+            case SYS_write:
+                printf("%d, 0x%lx, %lu", (int)args[0], args[1], args[2]);
+                break;
+            case SYS_exec: {
+                char path[128];
+                fetchstr(args[0], path, sizeof(path)); // Lấy đường dẫn
+                printf("\"%s\", [", path);
+
+                // Lấy và in từng chuỗi trong argv
+                uint64 uargv = args[1];
+                uint64 uarg;
+                char arg[128];
+                for (int i = 0; i < 10; i++) { // Giới hạn tối đa 10 đối số
+                    fetchaddr(uargv + sizeof(uint64) * i, &uarg);
+                    if (uarg == 0)
+                        break;
+                    fetchstr(uarg, arg, sizeof(arg));
+                    if (i > 0)
+                        printf(", ");
+                    printf("\"%s\"", arg);
+                }
+                printf("]");
+                break;
+            }
+            case SYS_open: {
+                char buf[128];
+                fetchstr(args[0], buf, sizeof(buf));
+                printf("\"%s\", %d", buf, (int)args[1]);
+                break;
+            }
+            case SYS_close:
+            case SYS_dup:
+            case SYS_kill:
+                printf("%d", (int)args[0]);
+                break;
+            case SYS_chdir:
+            case SYS_unlink:
+            case SYS_mkdir: {
+                char buf[128];
+                fetchstr(args[0], buf, sizeof(buf));
+                printf("\"%s\"", buf);
+                break;
+            }
+            case SYS_link: {
+                char old[128], new[128];
+                fetchstr(args[0], old, sizeof(old));
+                fetchstr(args[1], new, sizeof(new));
+                printf("\"%s\", \"%s\"", old, new);
+                break;
+            }
+            case SYS_fstat:
+                printf("%d, 0x%lx", (int)args[0], args[1]);
+                break;
+            case SYS_pipe:
+                printf("0x%lx", args[0]);
+                break;
+            case SYS_exit:
+            case SYS_trace:
+                printf("%d", (int)args[0]);
+                break;
+            case SYS_sbrk:
+                printf("%ld", args[0]);
+                break;
+            default:
+                // Mặc định in tất cả tham số
+                for (int i = 0; i < 6; i++) {
+                    if (i > 0)
+                        printf(", ");
+                    printf("0x%lx", args[i]);
+                }
+                break;
+            }
+
+            // In giá trị trả về
+            printf(") -> %ld\n", p->trapframe->a0);
+        }
+    } else {
+        printf("%d %s: unknown sys call %d\n",
+               p->pid, p->name, num);
+        p->trapframe->a0 = -1;
     }
-  } else {
-    printf("%d %s: unknown sys call %d\n",
-            p->pid, p->name, num);
-    p->trapframe->a0 = -1;
-  }
 }

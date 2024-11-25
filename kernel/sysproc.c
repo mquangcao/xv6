@@ -93,8 +93,6 @@ sys_uptime(void)
   return xticks;
 }
 
-extern uint64 cal_freemem(void);
-extern uint64 cal_nproc(void);
 uint64 sys_sysinfo(void){
 
   struct sysinfo kinfo;
