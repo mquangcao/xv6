@@ -1,12 +1,15 @@
+diff --git a/22120280_22120284_22120294.patch b/22120280_22120284_22120294.patch
+new file mode 100644
+index 0000000..e69de29
 diff --git a/Makefile b/Makefile
-index 74e454f..deb4798 100644
+index 74e454f..95710a0 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -194,6 +194,8 @@ UPROGS=\
  	$U/_grind\
  	$U/_wc\
  	$U/_zombie\
-+	$U/_trace
++	$U/_trace\
 +	$U/_sysinfotest\
  
  
