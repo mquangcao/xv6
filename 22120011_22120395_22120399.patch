@@ -1,0 +1,334 @@
+diff --git a/answers*-.txt b/answers*-.txt
+new file mode 100644
+index 0000000..f9835ac
+--- /dev/null
++++ b/answers*-.txt
+@@ -0,0 +1,98 @@
++Câu hỏi thêm: Những lệnh gọi hệ thống nào khác trong xv6 có thể được tăng tốc bằng cách sử dụng trang chia sẻ này? Hãy giải thích.
++
++Trả lời:
++-Những lệnh gọi hệ thống nào khác trong xv6 có thể được tăng tốc bằng cách sử dụng trang chia sẻ : uptime, sbrk, time , getuid, time,..
++-Lí do là : Cải thiện hiệu năng thông qua giảm chi phí kernel crossings, 
++đặc biệt quan trọng  với các hệ thống nhiều tiến trình với tần suất cao.
++
++Giải thích cụ thể với uptime(): Hệ thống gọi này trả về thời gian hoạt động hiện tại của hệ thống. 
++Mặc dù giá trị này thay đổi liên tục, 
++nhưng nhân hệ có thể cập nhật trang chia sẻ tại các khoảng thời gian cố định (ví dụ, mỗi 10 mili giây).
++Cách thức: Thêm giá trị timeticks vào cấu trúc usyscall, và khi có ngắt đồng hồ (clockintr), 
++gán giá trị mới nhất vào trang này. Sau đó, ở không gian người dùng, khi gọi uptime, 
++chỉ cần lấy giá trị này từ trang USYSCALL giống như cách lấy PID với ugetpid().
++
++Câu hỏi thêm: Giải thích chi tiết các trang lá trong đầu ra của vmprint():
++Với mỗi trang lá trong đầu ra, bạn cần giải thích những gì nó chứa về mặt logic và các bit quyền của nó. 
++
++
++Trả lời: Trang lá (Leaf Pages):
++Trang lá là mục nhập cuối cùng trong cấu trúc cây. 
++Mỗi PTE trong bảng lá ánh xạ một địa chỉ ảo sang địa chỉ vật lý và chứa các bit quyền.
++
++Ví dụ,
++.. .. ..0: pte 0x0000000021fda01f pa 0x0000000087f68000
++pte: Sử dụng 10 bit cuối để lưu cờ quyền (flag), và các bit từ 54 đến 10 để lưu địa chỉ vật lý (pa).
++Cách tính địa chỉ vật lý: pa = (pte >> 10) << 12;
++Giải thích các bit quyền (flag):
++10 bit cuối 0000011011 cho biết các quyền V (valid), R (read), X (execute), U (user) được bật (enabled).
++
++.. .. ..1: pte 0x0000000021fd941f pa 0x0000000087f65000
++PTE: 0x0000000021fd941f
++PA: 0x0000000087f65000
++Giải thích:
++PA (0x87f65000): Trang vật lý mà mục này ánh xạ đến.
++Bits:
++0x1f = 00011111 (dạng nhị phân).
++V = 1: Mục này hợp lệ.
++R = 1: Có thể đọc.
++W = 1: Có thể ghi.
++X = 1: Có thể thực thi.
++U = 1: Quyền truy cập cho không gian người dùng.
++Ý nghĩa: Đây là một trang hợp lệ, có thể đọc, ghi, thực thi và được người dùng truy cập.
++
++.. .. ..2: pte 0x0000000021fd9007 pa 0x0000000087f64000
++pte: 0x21fd9007
++pa: Địa chỉ vật lý (0x87f64000) ánh xạ trang.
++Các bit quyền:
++0x07: Valid, Writable, Executable.
++Trang này có thể chứa code được thực thi, ví dụ: vùng code .text.
++
++.. .. ..3: pte 0x0000000021fd8c17 pa 0x0000000087f63000
++PTE: 0x0000000021fd8c17
++PA: 0x0000000087f63000
++Giải thích:
++PA (0x87f63000): Trang vật lý được ánh xạ.
++Bits:
++0x17 = 00010111 (dạng nhị phân).
++V = 1: Hợp lệ.
++R = 1: Có thể đọc.
++W = 1: Có thể ghi.
++X = 0: Không thể thực thi.
++U = 1: Quyền truy cập cho người dùng.
++Ý nghĩa: Trang hợp lệ, có thể đọc và ghi nhưng không thể thực thi.
++
++.. .. ..509: pte 0x0000000021fdcc13 pa 0x0000000087f73000
++PTE: 0x0000000021fdcc13
++PA: 0x0000000087f73000
++Giải thích:
++PA (0x87f73000): Địa chỉ vật lý của trang.
++Bits:
++0x13 = 00010011 (dạng nhị phân).
++V = 1: Hợp lệ.
++R = 1: Có thể đọc.
++W = 0: Không thể ghi.
++X = 0: Không thể thực thi.
++U = 1: Người dùng được phép truy cập.
++Ý nghĩa: Đây là trang chỉ đọc, không ghi, không thực thi nhưng có quyền truy cập cho người dùng.
++
++.. .. ..510: pte 0x0000000021fdd007 pa 0x0000000087f74000
++PTE: 0x0000000021fdd007
++PA: 0x0000000087f74000
++Giải thích:
++PA (0x87f74000): Trang vật lý tương ứng.
++Bits:
++0x07 = 00000111 (dạng nhị phân).
++V = 1: Hợp lệ.
++R = 1: Có thể đọc.
++W = 1: Có thể ghi.
++X = 0: Không thể thực thi.
++U = 0: Không có quyền truy cập từ người dùng.
++Ý nghĩa: Trang này chỉ có thể đọc, ghi nhưng không thể thực thi và chỉ được kernel truy cập.
++
++.. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000
++pte 0x0000000020001c0b:
++0x0b: Các quyền:
++V = 1: Hợp lệ.
++R = 1, X = 1: Chỉ đọc và thực thi, không cho ghi.
++Địa chỉ vật lý ánh xạ: 0x0000000080007000.
+\ No newline at end of file
+diff --git a/kernel/defs.h b/kernel/defs.h
+index a3c962b..2f2c0c9 100644
+--- a/kernel/defs.h
++++ b/kernel/defs.h
+@@ -173,12 +173,14 @@ uint64          walkaddr(pagetable_t, uint64);
+ int             copyout(pagetable_t, uint64, char *, uint64);
+ int             copyin(pagetable_t, char *, uint64, uint64);
+ int             copyinstr(pagetable_t, char *, uint64, uint64);
++void            vmprint(pagetable_t); // Định nghĩa protopyte cho vmprint() trong kernel/defs.h
+ 
+ // plic.c
+ void            plicinit(void);
+ void            plicinithart(void);
+ int             plic_claim(void);
+ void            plic_complete(int);
++void            plicinit(void);
+ 
+ // virtio_disk.c
+ void            virtio_disk_init(void);
+diff --git a/kernel/exec.c b/kernel/exec.c
+index e18bbb6..841b40e 100644
+--- a/kernel/exec.c
++++ b/kernel/exec.c
+@@ -128,6 +128,10 @@ exec(char *path, char **argv)
+   p->trapframe->sp = sp; // initial stack pointer
+   proc_freepagetable(oldpagetable, oldsz);
+ 
++  if(p->pid == 1){
++    vmprint(p->pagetable); // Gọi hàm in bảng trang
++  }
++
+   return argc; // this ends up in a0, the first argument to main(argc, argv)
+ 
+  bad:
+diff --git a/kernel/proc.c b/kernel/proc.c
+index 58a8a0b..dbb5faf 100644
+--- a/kernel/proc.c
++++ b/kernel/proc.c
+@@ -132,6 +132,15 @@ found:
+     return 0;
+   }
+ 
++  if ((p->usyscall = (struct usyscall *) kalloc()) == 0) {
++    freeproc(p);
++    release(&p->lock);
++    return 0;
++  }
++
++  // Lưu PID vào trang chia sẻ
++  p->usyscall->pid = p->pid;
++
+   // An empty user page table.
+   p->pagetable = proc_pagetable(p);
+   if(p->pagetable == 0){
+@@ -158,6 +167,12 @@ freeproc(struct proc *p)
+   if(p->trapframe)
+     kfree((void*)p->trapframe);
+   p->trapframe = 0;
++
++  if (p->usyscall) {
++    kfree((void *) p->usyscall);
++  }
++  p->usyscall = 0;
++
+   if(p->pagetable)
+     proc_freepagetable(p->pagetable, p->sz);
+   p->pagetable = 0;
+@@ -201,6 +216,15 @@ proc_pagetable(struct proc *p)
+     uvmfree(pagetable, 0);
+     return 0;
+   }
++   
++   // Tạo table tiến trình
++  if (mappages(pagetable, USYSCALL, PGSIZE,
++                (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
++    uvmunmap(pagetable, TRAPFRAME, 1, 0);
++    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
++    uvmfree(pagetable, 0);
++    return 0;
++  }
+ 
+   return pagetable;
+ }
+@@ -212,6 +236,9 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
+ {
+   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+   uvmunmap(pagetable, TRAPFRAME, 1, 0);
++
++  uvmunmap(pagetable, USYSCALL, 1, 0);
++  
+   uvmfree(pagetable, sz);
+ }
+ 
+diff --git a/kernel/proc.h b/kernel/proc.h
+index d021857..acd4f0a 100644
+--- a/kernel/proc.h
++++ b/kernel/proc.h
+@@ -100,6 +100,7 @@ struct proc {
+   uint64 sz;                   // Size of process memory (bytes)
+   pagetable_t pagetable;       // User page table
+   struct trapframe *trapframe; // data page for trampoline.S
++  struct usyscall *usyscall;
+   struct context context;      // swtch() here to run process
+   struct file *ofile[NOFILE];  // Open files
+   struct inode *cwd;           // Current directory
+diff --git a/kernel/riscv.h b/kernel/riscv.h
+index 20a01db..100895e 100644
+--- a/kernel/riscv.h
++++ b/kernel/riscv.h
+@@ -343,6 +343,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
+ #define PTE_W (1L << 2)
+ #define PTE_X (1L << 3)
+ #define PTE_U (1L << 4) // user can access
++#define PTE_A (1L << 6)
+ 
+ // shift a physical address to the right place for a PTE.
+ #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
+diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+index 88644b2..f26cff0 100644
+--- a/kernel/sysproc.c
++++ b/kernel/sysproc.c
+@@ -69,13 +69,48 @@ sys_sleep(void)
+   return 0;
+ }
+ 
+-
++extern pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
+ #ifdef LAB_PGTBL
+-int
+-sys_pgaccess(void)
+-{
+-  // lab pgtbl: your code here.
+-  return 0;
++int sys_pgaccess(void) {
++    uint64 start_va;          // Địa chỉ ảo bắt đầu
++    int num_pages;            // Số lượng trang cần kiểm tra
++    uint64 user_bitmask_addr; // Địa chỉ bộ đệm trong không gian người dùng
++    uint64 curr_va;           // Địa chỉ ảo hiện tại trong vòng lặp
++    uint64 bitmask = 0;       // Lưu kết quả bitmask
++    uint64 bit_position = 1;  // Vị trí bit hiện tại (khởi đầu là bit thấp nhất)
++
++    struct proc *curr_proc = myproc(); // Tiến trình hiện tại
++
++    // Lấy tham số từ người dùng
++    argaddr(0, &start_va);          // Lấy địa chỉ ảo bắt đầu
++    argint(1, &num_pages);          // Lấy số lượng trang
++    argaddr(2, &user_bitmask_addr); // Lấy địa chỉ bộ đệm
++    
++
++    // Kiểm tra giới hạn số trang (tối đa 64 trang để đảm bảo bitmask không vượt 64 bit)
++    if (num_pages > 64) {
++        return -1;
++    }
++
++    // Duyệt qua từng trang
++    for (curr_va = start_va; curr_va < start_va + PGSIZE * num_pages; curr_va += PGSIZE) {
++        // Tìm mục PTE (Page Table Entry) của địa chỉ hiện tại
++        pte_t *pte = walk(curr_proc->pagetable, curr_va, 0);
++
++        if (pte && (*pte & PTE_A)) { // Nếu bit PTE_A được bật (trang đã được truy cập)
++            bitmask |= bit_position; // Đánh dấu trạng thái của trang trong bitmask
++            *pte &= ~PTE_A;          // Xóa bit PTE_A để ghi nhận trạng thái mới
++        }
++
++        bit_position <<= 1; // Dịch vị trí bit sang trái cho trang tiếp theo
++    }
++
++    // Sao chép kết quả bitmask ra không gian người dùng
++    if (copyout(curr_proc->pagetable, user_bitmask_addr, (char *)&bitmask, sizeof(bitmask)) < 0) {
++        return -1; // Trả về lỗi nếu không sao chép được
++    }
++
++    return 0; // Thành công
+ }
+ #endif
+ 
+diff --git a/kernel/vm.c b/kernel/vm.c
+index 5c31e87..3f69c84 100644
+--- a/kernel/vm.c
++++ b/kernel/vm.c
+@@ -449,3 +449,40 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+     return -1;
+   }
+ }
++
++
++// Hàm đệ quy in ra nội dung của bảng trang theo từng cấp
++void
++vmprint_recursive(pagetable_t pagetable, int level)
++{
++    // Nếu ở cấp đầu tiên (level == 2), in ra địa chỉ của bảng trang gốc
++    if (level == 2)
++        printf("page table %p\n", pagetable);
++
++    // Lặp qua tất cả 512 mục PTE trong bảng trang hiện tại
++    for (int i = 0; i < 512; i++) {
++        pte_t pte = pagetable[i];  // Lấy giá trị của mục PTE tại chỉ số i
++        if (pte & PTE_V) {        // Kiểm tra xem mục PTE có hợp lệ (Valid) hay không
++            // In thông tin của mục PTE tại cấp độ hiện tại
++            for (int j = 2; j >= level; j--)
++                printf(" ..");  // In dấu ".." để biểu thị cấp độ của mục trong cây bảng trang
++            printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte)); 
++            // i: chỉ số PTE
++            // pte: giá trị PTE
++            // PTE2PA(pte): địa chỉ vật lý được ánh xạ từ mục PTE
++
++            // Nếu mục PTE trỏ đến bảng trang con (không phải trang lá), thực hiện đệ quy
++            if (level > 0) {
++                uint64 child = PTE2PA(pte);  // Lấy địa chỉ vật lý của bảng trang con
++                vmprint_recursive((pagetable_t)child, level - 1); // Đệ quy xuống cấp tiếp theo
++            }
++        }
++    }
++}
++
++// Hàm in bảng trang, gọi hàm đệ quy để bắt đầu từ cấp cao nhất
++void
++vmprint(pagetable_t pagetable)
++{
++    vmprint_recursive(pagetable, 2); // Bắt đầu in từ cấp cao nhất (cấp 2)
++}
+diff --git a/time.txt b/time.txt
+new file mode 100644
+index 0000000..cabf43b
+--- /dev/null
++++ b/time.txt
+@@ -0,0 +1 @@
++24
+\ No newline at end of file
