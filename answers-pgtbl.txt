@@ -1,0 +1,1 @@
+Tất cả các syscall để lấy thông tin về tiến trình có thể được thực hiện nhanh hơn bằng cách làm điều tương tự như chúng ta đã làm ở đây: cấp phát một địa chỉ cố định và một trang chỉ đọc từ phía người dùng ngay khi khởi động.
