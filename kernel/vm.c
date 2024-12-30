@@ -487,10 +487,39 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 }
 
 
+// Hàm đệ quy in ra nội dung của bảng trang theo từng cấp
+void
+vmprint_recursive(pagetable_t pagetable, int level)
+{
+    // Nếu ở cấp đầu tiên (level == 2), in ra địa chỉ của bảng trang gốc
+    if (level == 2)
+        printf("page table %p\n", pagetable);
+
+    // Lặp qua tất cả 512 mục PTE trong bảng trang hiện tại
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];  // Lấy giá trị của mục PTE tại chỉ số i
+        if (pte & PTE_V) {        // Kiểm tra xem mục PTE có hợp lệ (Valid) hay không
+            // In thông tin của mục PTE tại cấp độ hiện tại
+            for (int j = 2; j >= level; j--)
+                printf(" ..");  // In dấu ".." để biểu thị cấp độ của mục trong cây bảng trang
+            printf("%d: pte %p pa %p\n", i, (void*)pte,(void*) PTE2PA(pte)); 
+            // i: chỉ số PTE
+            // pte: giá trị PTE
+            // PTE2PA(pte): địa chỉ vật lý được ánh xạ từ mục PTE
+
+            // Nếu mục PTE trỏ đến bảng trang con (không phải trang lá), thực hiện đệ quy
+            if (level > 0) {
+                uint64 child = PTE2PA(pte);  // Lấy địa chỉ vật lý của bảng trang con
+                vmprint_recursive((pagetable_t)child, level - 1); // Đệ quy xuống cấp tiếp theo
+            }
+        }
+    }
+}
+
 #ifdef LAB_PGTBL
 void
 vmprint(pagetable_t pagetable) {
-  // your code here
+  vmprint_recursive(pagetable, 2);
 }
 #endif
 
