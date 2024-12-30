@@ -123,3 +123,37 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 sys_pgaccess(void) {
+    uint64 start_addr; 
+    int num_pages;   
+    uint64 user_buf; 
+
+    argaddr(0, &start_addr);
+    argint(1, &num_pages);
+    argaddr(2, &user_buf);
+
+    if (num_pages <= 0 || num_pages > 64) {
+        return -1;
+    }
+    char kernel_buf[8] = {0}; 
+    struct proc *p = myproc();
+
+    for (int i = 0; i < num_pages; i++) {
+        uint64 va = start_addr + i * PGSIZE; 
+        pte_t *pte = walk(p->pagetable, va, 0); 
+        if (!pte || !(*pte & PTE_V)) {
+            continue; 
+        }
+        if (*pte & PTE_A) {
+            kernel_buf[i / 8] |= (1 << (i % 8)); 
+            *pte &= ~PTE_A; 
+        }
+    }
+
+    if (copyout(p->pagetable, user_buf, kernel_buf, sizeof(kernel_buf)) < 0) {
+        return -1; 
+    }
+
+    return 0; 
+}

@@ -194,7 +194,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-
+	
 
 
 
@@ -246,7 +246,9 @@ endif
 
 ifeq ($(LAB),pgtbl)
 UPROGS += \
-	$U/_pgtbltest
+	$U/_pgtbltest\
+	$U/_pgaccesstest
+
 endif
 
 ifeq ($(LAB),lock)
