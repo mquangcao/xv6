@@ -135,20 +135,18 @@ uint64 sys_pgaccess(void) {
 
     if (num_pages <= 0 || num_pages > 64) {
         return -1;
-    }
-
-    // Tạo một bitmask buffer trong kernel
-    char kernel_buf[8] = {0}; // Mỗi bit tương ứng với 1 trang (64 trang tối đa)
+    }Ư
+    char kernel_buf[8] = {0}; 
     struct proc *p = myproc();
 
     for (int i = 0; i < num_pages; i++) {
-        uint64 va = start_addr + i * PGSIZE; // Địa chỉ của trang
-        pte_t *pte = walk(p->pagetable, va, 0); // Lấy PTE
+        uint64 va = start_addr + i * PGSIZE; 
+        pte_t *pte = walk(p->pagetable, va, 0); 
         if (!pte || !(*pte & PTE_V)) {
-            continue; // Bỏ qua nếu PTE không hợp lệ
+            continue; 
         }
         if (*pte & PTE_A) {
-            kernel_buf[i / 8] |= (1 << (i % 8)); // Đặt bit trong bitmask
+            kernel_buf[i / 8] |= (1 << (i % 8)); 
             *pte &= ~PTE_A; 
         }
     }
