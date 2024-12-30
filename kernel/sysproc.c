@@ -135,7 +135,7 @@ uint64 sys_pgaccess(void) {
 
     if (num_pages <= 0 || num_pages > 64) {
         return -1;
-    }Ư
+    }
     char kernel_buf[8] = {0}; 
     struct proc *p = myproc();
 
